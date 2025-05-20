@@ -1,1 +1,124 @@
-# Data Access Objects
+package com.zoomanagement.dao;
+
+import com.zoomanagement.model.Animal;
+import com.zoomanagement.util.DatabaseConnection;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+public class AnimalDao {
+    private final DatabaseConnection dbConnection;
+
+    public AnimalDao() {
+        this.dbConnection = DatabaseConnection.getInstance();
+    }
+
+    public void createTable() throws SQLException {
+        String sql = """
+            CREATE TABLE IF NOT EXISTS animals (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                species TEXT NOT NULL,
+                habitat TEXT NOT NULL,
+                arrival_date DATE NOT NULL,
+                health_status TEXT NOT NULL
+            )
+        """;
+
+        try (Connection conn = dbConnection.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
+        }
+    }
+
+    public void save(Animal animal) throws SQLException {
+        String sql = """
+            INSERT INTO animals (id, name, species, habitat, arrival_date, health_status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """;
+
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, animal.getId().toString());
+            pstmt.setString(2, animal.getName());
+            pstmt.setString(3, animal.getSpecies());
+            pstmt.setString(4, animal.getHabitat());
+            pstmt.setDate(5, new java.sql.Date(animal.getArrivalDate().getTime()));
+            pstmt.setString(6, animal.getHealthStatus().name());
+            pstmt.executeUpdate();
+        }
+    }
+
+    public void update(Animal animal) throws SQLException {
+        String sql = """
+            UPDATE animals 
+            SET name = ?, species = ?, habitat = ?, arrival_date = ?, health_status = ?
+            WHERE id = ?
+        """;
+
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, animal.getName());
+            pstmt.setString(2, animal.getSpecies());
+            pstmt.setString(3, animal.getHabitat());
+            pstmt.setDate(4, new java.sql.Date(animal.getArrivalDate().getTime()));
+            pstmt.setString(5, animal.getHealthStatus().name());
+            pstmt.setString(6, animal.getId().toString());
+            pstmt.executeUpdate();
+        }
+    }
+
+    public void delete(UUID id) throws SQLException {
+        String sql = "DELETE FROM animals WHERE id = ?";
+
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, id.toString());
+            pstmt.executeUpdate();
+        }
+    }
+
+    public Animal findById(UUID id) throws SQLException {
+        String sql = "SELECT * FROM animals WHERE id = ?";
+
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, id.toString());
+            
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapResultSetToAnimal(rs);
+                }
+            }
+        }
+        return null;
+    }
+
+    public List<Animal> findAll() throws SQLException {
+        List<Animal> animals = new ArrayList<>();
+        String sql = "SELECT * FROM animals";
+
+        try (Connection conn = dbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            while (rs.next()) {
+                animals.add(mapResultSetToAnimal(rs));
+            }
+        }
+        return animals;
+    }
+
+    private Animal mapResultSetToAnimal(ResultSet rs) throws SQLException {
+        Animal animal = new Animal();
+        animal.setId(UUID.fromString(rs.getString("id")));
+        animal.setName(rs.getString("name"));
+        animal.setSpecies(rs.getString("species"));
+        animal.setHabitat(rs.getString("habitat"));
+        animal.setArrivalDate(rs.getDate("arrival_date"));
+        animal.setHealthStatus(Animal.HealthStatus.valueOf(rs.getString("health_status")));
+        return animal;
+    }
+}
